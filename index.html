@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ward Board</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: sticky top bar with role switch, one working column of ledger-style patient rows, modal sheet for recording temperatures and doctor visits. */
+:root{
+  --bg:#F2F5F4; --surface:#FFFFFF; --ink:#14211F; --muted:#5C6C69; --line:#D6DEDB;
+  --accent:#0E6B66; --accent-ink:#FFFFFF; --accent-soft:#DDEFEC;
+  --fever:#C0392B; --fever-soft:#F9E1DE; --warn:#9A5F08; --warn-soft:#F8EBCF; --ok:#2E7D4F; --ok-soft:#DDF0E4;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1816; --surface:#172321; --ink:#E6EEEC; --muted:#93A5A1; --line:#28403B;
+    --accent:#4FC0B8; --accent-ink:#07201E; --accent-soft:#123430;
+    --fever:#F0786C; --fever-soft:#3A1C19; --warn:#E3B04F; --warn-soft:#3A2C10; --ok:#6CC58D; --ok-soft:#14301F;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1816; --surface:#172321; --ink:#E6EEEC; --muted:#93A5A1; --line:#28403B;
+  --accent:#4FC0B8; --accent-ink:#07201E; --accent-soft:#123430;
+  --fever:#F0786C; --fever-soft:#3A1C19; --warn:#E3B04F; --warn-soft:#3A2C10; --ok:#6CC58D; --ok-soft:#14301F;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--surface)}
+h1,h2,h3,p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line);
+  margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding:10px max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px))}
+.top-in{max-width:960px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;justify-content:space-between}
+.brand{display:flex;flex-direction:column;min-width:0}
+.brand b{font-size:18px;letter-spacing:.01em}
+.brand span{font-size:12px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:7px 14px;cursor:pointer;font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.who{font-size:13px;color:var(--muted)}
+.wrap{max-width:960px;margin:0 auto;padding-top:20px}
+.note{font-size:13px;color:var(--muted);margin-bottom:16px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto}
+.tabs button{background:none;border:0;padding:10px 14px;cursor:pointer;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+.stat .k{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.stat .v{font-family:var(--mono);font-size:26px;font-weight:600;margin-top:2px}
+.stat .s{font-size:12px;color:var(--muted)}
+.bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.tools{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.tools input[type=search]{flex:1 1 220px;min-width:0}
+input,select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%}
+textarea{min-height:84px;resize:vertical}
+label.f{display:block;font-size:13px;font-weight:500;margin-bottom:4px}
+.sec{margin:22px 0 8px;display:flex;align-items:baseline;gap:10px}
+.sec h2{font-size:15px}
+.sec span{font-size:13px;color:var(--muted)}
+.list{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.row{display:grid;grid-template-columns:64px minmax(0,1fr) auto auto;gap:6px 14px;align-items:center;padding:11px 14px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row.dim{opacity:.62}
+.room{font-family:var(--mono);font-weight:600;font-size:13px;background:var(--accent-soft);color:var(--ink);border-radius:6px;padding:4px 0;text-align:center}
+.nm{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.sub{font-size:12.5px;color:var(--muted)}
+.rd{font-family:var(--mono);font-size:17px;font-weight:600}
+.rd.fever{color:var(--fever)}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--accent-soft);color:var(--ink);white-space:nowrap}
+.pill.fever{background:var(--fever-soft);color:var(--fever)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.dots{display:inline-flex;gap:3px;vertical-align:middle;margin-right:6px}
+.dots i{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--muted);display:block}
+.dots i.on{background:var(--ok);border-color:var(--ok)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600;white-space:nowrap}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{background:var(--fever);border-color:var(--fever);color:#fff}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.empty{padding:26px 16px;text-align:center;color:var(--muted)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.card h3{font-size:15px;margin-bottom:8px}
+.grid74{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px}
+.cell{font-family:var(--mono);font-size:12px;text-align:center;padding:9px 0;border-radius:6px;border:1px solid var(--line);background:var(--accent-soft)}
+.cell.free{background:transparent;border-style:dashed;color:var(--muted)}
+.cell.fv{background:var(--fever-soft);color:var(--fever);border-color:var(--fever)}
+.cell.ap{background:var(--ok-soft);color:var(--ok);border-color:var(--ok)}
+.cell.dd{background:var(--line);color:var(--muted)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-bottom:12px}
+.ov{position:fixed;inset:0;z-index:40;background:rgba(8,16,14,.55);display:flex;align-items:flex-start;justify-content:center;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));overflow-y:auto}
+.sheet{background:var(--surface);border:1px solid var(--line);border-radius:12px;width:100%;max-width:560px;padding:18px;margin:auto 0}
+.sheet h2{font-size:18px}
+.sh-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:12px}
+.x{background:none;border:0;font-size:22px;line-height:1;cursor:pointer;color:var(--muted);padding:2px 6px}
+.quick{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.quick button{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 9px;cursor:pointer;font-family:var(--mono);font-size:13px}
+.tin{font-family:var(--mono);font-size:30px;font-weight:600;max-width:170px}
+.msg{border-radius:8px;padding:9px 12px;font-size:13.5px;margin:10px 0}
+.msg.err{background:var(--fever-soft);color:var(--fever)}
+.msg.warn{background:var(--warn-soft);color:var(--warn)}
+.msg.info{background:var(--accent-soft)}
+.msg.ok{background:var(--ok-soft);color:var(--ok)}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;margin:8px 0}
+.chk input{width:auto;margin-top:3px}
+.acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+table.tl{width:100%;border-collapse:collapse;font-size:13.5px;margin:6px 0}
+.tlw{overflow-x:auto}
+table.tl th{text-align:left;font-size:12px;color:var(--muted);font-weight:500;padding:4px 8px 4px 0}
+table.tl td{padding:5px 8px 5px 0;border-top:1px solid var(--line);vertical-align:top}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;z-index:60;font-size:14px;max-width:90vw}
+.form{display:grid;gap:12px;max-width:440px}
+svg text{fill:var(--muted);font-family:var(--mono);font-size:10px}
+@media (max-width:600px){
+  .row{grid-template-columns:52px minmax(0,1fr);}
+  .row>.r3,.row>.r4{grid-column:2}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+body{margin:0;font-size:15px}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal"></div>
+<div id="toast"></div>
+<script>
+(function(){
+"use strict";
+var FEVER=38.0, KEY="wardboard-v1", TOTAL=74;
+var USERS={nurse:"Nurse Priya",doctor:"Dr. Mehta",admin:"Admin Rohan"};
+var ROLEL={nurse:"Nurse",doctor:"Doctor",admin:"Admin"};
+var TABS={
+  nurse:[["pending","To measure"],["done","Done today"]],
+  doctor:[["rounds","Today's rounds"],["cand","Discharge candidates"],["dash","Dashboard"]],
+  admin:[["queue","Discharge queue"],["admit","Admit patient"],["rooms","Rooms"],["dash","Dashboard"],["log","Activity"]]
+};
+function pad(n){return String(n).padStart(2,"0")}
+function dkey(off){var d=new Date();d.setDate(d.getDate()-(off||0));return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
+function fromKey(k){var a=k.split("-");return new Date(+a[0],+a[1]-1,+a[2])}
+function today(){return dkey(0)}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function hhmm(iso){var d=new Date(iso);return pad(d.getHours())+":"+pad(d.getMinutes())}
+function ago(iso){var m=Math.round((Date.now()-new Date(iso).getTime())/60000);if(m<60)return m+" min ago";var h=Math.round(m/60);if(h<48)return h+" h ago";return Math.round(h/24)+" days ago"}
+function rng(s){return function(){s|=0;s=s+0x6D2B79F5|0;var t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+var FIRST=["Aarav","Ananya","Vihaan","Diya","Arjun","Isha","Kabir","Meera","Rohan","Sneha","Aditya","Pooja","Nikhil","Kavya","Sanjay","Neha","Imran","Farah","Rahul","Priyanka","Vikram","Anjali","Manish","Divya","Suresh","Lata","Faisal","Rekha"];
+var LAST=["Sharma","Patel","Deshmukh","Iyer","Khan","Joshi","Nair","Gupta","Shaikh","Kulkarni","Reddy","Singh","Pawar","Mehta"];
+var NOTES=["Continue paracetamol and fluids.","Fever settling, monitor closely.","Hydration adequate, no change to plan.","Reviewed chart, continue current plan.","Oxygen saturation stable, continue."];
+
+function seed(){
+  var r=rng(7), ps=[], i;
+  for(i=0;i<TOTAL;i++){
+    var a=1+Math.floor(r()*10), f=2+Math.floor(r()*6), temps=[], visits=[], d;
+    for(d=a;d>=0;d--){
+      var idx=a-d, fever=idx<f;
+      if(d===0){ if(r()>0.42) continue; }
+      else if(!fever && r()<0.04) continue;
+      var v=fever?38.1+r()*1.7-(idx>3?0.3:0):36.4+r()*1.0;
+      v=Math.round(v*10)/10;
+      var at=dkey(d)+"T"+pad(8+Math.floor(r()*3))+":"+pad(Math.floor(r()*60));
+      temps.push({date:dkey(d),v:v,by:"Nurse Priya",at:new Date(at).toISOString()});
+      if(d>0 || r()<0.22){
+        visits.push({date:dkey(d),notes:NOTES[Math.floor(r()*NOTES.length)],by:"Dr. Mehta",at:new Date(dkey(d)+"T"+pad(11+Math.floor(r()*4))+":"+pad(Math.floor(r()*60))).toISOString()});
+      }
+    }
+    ps.push({id:"P"+(100+i),name:FIRST[i%28]+" "+LAST[(i*5+Math.floor(i/28)*3+3)%14],age:18+Math.floor(r()*60),
+      room:i+1,admitted:dkey(a),temps:temps,visits:visits,status:"active"});
+  }
+  var st={v:1,seedDate:today(),patients:ps,hist:{cured:52,dead:8,avgStay:7.4},log:[]};
+  var n=0, hrs=[6,1,26];
+  ps.forEach(function(p){ if(n<3 && streak(p)>=3){p.status="approved";p.approvedBy="Dr. Mehta";p.approvedAt=new Date(Date.now()-hrs[n]*3600000).toISOString();n++} });
+  return st;
+}
+var S=load();
+function load(){
+  try{var x=JSON.parse(localStorage.getItem(KEY));if(x&&x.patients&&x.seedDate===today())return x}catch(e){}
+  return seed();
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+var ui={role:"nurse",tab:"pending",q:"",modal:null,dup:false};
+
+/* ---------- domain rules ---------- */
+function onDay(p,date){return p.temps.filter(function(t){return t.date===date})}
+function official(p,date){return onDay(p,date)[0]||null}
+function streak(p){
+  var start=official(p,today())?0:1, c=0, off;
+  for(off=start;off<40;off++){
+    var k=dkey(off); if(k<p.admitted) break;
+    var t=official(p,k);
+    if(t&&t.v<FEVER) c++; else break;
+  }
+  return c;
+}
+function occupied(p){return p.status==="active"||p.status==="approved"||p.status==="dead"}
+function lastTemp(p){return p.temps.length?p.temps[p.temps.length-1]:null}
+function visitedToday(p){return p.visits.some(function(v){return v.date===today()})}
+function rising(p){
+  var a=official(p,dkey(2)),b=official(p,dkey(1)),c=official(p,today());
+  return !!(a&&b&&c&&a.v<b.v&&b.v<c.v);
+}
+function flags(p){
+  var t=official(p,today()), out=[];
+  if(t&&t.v>=39.5) out.push(["fever","High fever"]);
+  if(rising(p)) out.push(["warn","Rising 2 days"]);
+  return out;
+}
+function dayNo(p){return Math.round((fromKey(today())-fromKey(p.admitted))/86400000)+1}
+function activeList(){return S.patients.filter(function(p){return p.status==="active"})}
+function log(text){S.log.unshift({at:new Date().toISOString(),user:USERS[ui.role],role:ROLEL[ui.role],text:text});S.log=S.log.slice(0,60);save()}
+function checkTemp(v){
+  if(isNaN(v)) return {l:"empty"};
+  if(v<34||v>42) return {l:"err",m:"This value looks wrong. Valid readings are between 34.0 and 42.0 °C. Please measure again."};
+  if(v<35||v>41) return {l:"warn",m:"This is an unusual reading. Please re-check the thermometer before saving."};
+  if(v>=FEVER) return {l:"fever",m:"Fever (38.0 °C or above). The fever-free count for this patient restarts from 0."};
+  return {l:"ok",m:"Normal reading."};
+}
+function stats(){
+  var dead=S.hist.dead, cured=S.hist.cured, stayTotal=S.hist.avgStay*(S.hist.dead+S.hist.cured), n=S.hist.dead+S.hist.cured;
+  S.patients.forEach(function(p){
+    if(p.outcome==="dead"){dead++}
+    if(p.status==="closed"&&p.outcome==="cured"){cured++}
+    if(p.status==="closed"||p.status==="dead"){stayTotal+=dayNo(p);n++}
+  });
+  var closed=dead+cured;
+  return {dead:dead,cured:cured,closed:closed,rate:closed?dead/closed*100:0,avgStay:n?stayTotal/n:0};
+}
+
+/* ---------- chart ---------- */
+function chart(p){
+  var W=460,H=150,L=30,R=10,T=10,B=22,days=[],i;
+  for(i=6;i>=0;i--) days.push(dkey(i));
+  function X(i){return L+i*(W-L-R)/6}
+  function Y(v){return T+(41-v)/(41-35.5)*(H-T-B)}
+  var s='<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="Temperature over the last 7 days">';
+  [36,38,40].forEach(function(g){
+    s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(g)+'" y2="'+Y(g)+'" stroke="'+(g===38?'var(--fever)':'var(--line)')+'" stroke-width="1" '+(g===38?'stroke-dasharray="4 3"':'')+'/>';
+    s+='<text x="'+(L-5)+'" y="'+(Y(g)+3)+'" text-anchor="end">'+g+'</text>';
+  });
+  var pts=[];
+  days.forEach(function(d,i){var t=official(p,d);s+='<text x="'+X(i)+'" y="'+(H-6)+'" text-anchor="middle">'+"SMTWTFS".charAt(fromKey(d).getDay())+'</text>';if(t)pts.push([X(i),Y(t.v),t.v])});
+  if(pts.length>1) s+='<polyline fill="none" stroke="var(--accent)" stroke-width="2" points="'+pts.map(function(q){return q[0]+','+q[1]}).join(' ')+'"/>';
+  pts.forEach(function(q,i){s+='<circle cx="'+q[0]+'" cy="'+q[1]+'" r="4" fill="'+(q[2]>=FEVER?'var(--fever)':'var(--accent)')+'"/>'});
+  if(pts.length){var q=pts[pts.length-1];s+='<text x="'+q[0]+'" y="'+(q[1]-8)+'" text-anchor="middle" style="fill:var(--ink);font-weight:600">'+q[2].toFixed(1)+'</text>'}
+  return s+'</svg>';
+}
+
+/* ---------- shared bits ---------- */
+function dots(n){var s='<span class="dots" title="'+Math.min(n,3)+' of 3 fever-free days">',i;for(i=0;i<3;i++)s+='<i class="'+(i<n?'on':'')+'"></i>';return s+'</span>'}
+function tempHTML(t){return t?'<span class="rd mono'+(t.v>=FEVER?' fever':'')+'">'+t.v.toFixed(1)+'°</span>':'<span class="rd mono muted">–</span>'}
+function match(p){var q=ui.q.trim().toLowerCase();return !q||p.name.toLowerCase().indexOf(q)>=0||String(p.room)===q||("r"+p.room)===q}
+function searchBar(ph){return '<div class="tools"><input type="search" id="q" placeholder="'+ph+'" value="'+esc(ui.q)+'" aria-label="Search patients"></div>'}
+function statTile(k,v,s,bar){return '<div class="stat"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="s">'+s+'</div>'+(bar!=null?'<div class="bar"><i style="width:'+bar+'%"></i></div>':'')+'</div>'}
+
+/* ---------- nurse ---------- */
+function nurseView(){
+  var act=activeList(), done=act.filter(function(p){return official(p,today())}), pend=act.filter(function(p){return !official(p,today())});
+  var h=new Date().getHours();
+  var out='<div class="stats">'+statTile("Still to measure",pend.length,"of "+act.length+" patients",null)+
+    statTile("Measured today",done.length,Math.round(done.length/act.length*100)+"% complete",done.length/act.length*100)+
+    statTile("Fever today",done.filter(function(p){return official(p,today()).v>=FEVER}).length,"among measured",null)+'</div>';
+  out+=searchBar("Search by name or room number");
+  if(ui.tab==="pending"){
+    var rows=pend.filter(match);
+    out+='<div class="list">'+(rows.length?rows.map(function(p){
+      var lt=lastTemp(p), due=h>=17?'<span class="pill fever">Overdue</span>':h>=14?'<span class="pill warn">Due soon</span>':'';
+      return '<div class="row"><span class="room">R'+p.room+'</span><div><div class="nm">'+esc(p.name)+'</div><div class="sub">'+p.age+' yrs · Day '+dayNo(p)+' · '+dots(streak(p))+'fever-free days</div></div><div class="r3" style="text-align:right">'+(lt?'<div class="sub">Yesterday</div>':'')+(lt?tempHTML(lt):'')+(due?'<div>'+due+'</div>':'')+'</div><div class="r4"><button class="btn primary" data-act="rec" data-id="'+p.id+'">Record</button></div></div>';
+    }).join(""):'<div class="empty">'+(pend.length?"No patient matches your search.":"All patients have been measured today.")+'</div>')+'</div>';
+  } else {
+    var rows2=done.filter(match);
+    out+='<div class="list">'+(rows2.length?rows2.map(function(p){
+      var rs=onDay(p,today()), o=rs[0];
+      return '<div class="row"><span class="room">R'+p.room+'</span><div><div class="nm">'+esc(p.name)+'</div><div class="sub">Taken by '+esc(o.by)+' at '+hhmm(o.at)+(rs.length>1?' · '+rs.length+' readings today':'')+'</div></div><div class="r3" style="text-align:right">'+tempHTML(o)+'</div><div class="r4"><button class="btn sm" data-act="rec" data-id="'+p.id+'">Add reading</button></div></div>';
+    }).join(""):'<div class="empty">No measured patients to show.</div>')+'</div>';
+  }
+  return out;
+}
+
+/* ---------- doctor ---------- */
+function doctorView(){
+  var act=activeList(), measured=act.filter(function(p){return official(p,today())});
+  var ready=measured.filter(function(p){return !visitedToday(p)}), wait=act.filter(function(p){return !official(p,today())});
+  var visited=act.filter(visitedToday);
+  if(ui.tab==="dash") return dashView();
+  if(ui.tab==="cand"){
+    var c=act.filter(function(p){return streak(p)>=3}).sort(function(a,b){return streak(b)-streak(a)});
+    return '<div class="note">Patients with 3 or more fever-free days in a row. The app suggests, you decide: only a doctor can approve a discharge.</div><div class="list">'+(c.length?c.map(function(p){
+      var s=streak(p);
+      return '<div class="row"><span class="room">R'+p.room+'</span><div><div class="nm">'+esc(p.name)+'</div><div class="sub">'+dots(s)+s+' fever-free days'+(s>=4?' · <b style="color:var(--fever)">overdue for decision</b>':'')+'</div></div><div class="r3"></div><div class="r4"><button class="btn primary" data-act="pat" data-id="'+p.id+'">Review</button></div></div>';
+    }).join(""):'<div class="empty">Nobody has reached 3 fever-free days yet.</div>')+'</div>';
+  }
+  ready.sort(function(a,b){return official(b,today()).v-official(a,today()).v});
+  var out='<div class="stats">'+statTile("Ready to visit",ready.length,"temperature taken",null)+statTile("Visited today",visited.length,"of "+act.length+" patients",visited.length/act.length*100)+statTile("Waiting for nurse",wait.length,"no temperature yet",null)+'</div>'+searchBar("Search by name or room number");
+  out+='<div class="sec"><h2>Ready to visit</h2><span>Highest temperature first</span></div><div class="list">'+(ready.filter(match).length?ready.filter(match).map(function(p){
+    var t=official(p,today()), fl=flags(p).map(function(f){return '<span class="pill '+f[0]+'">'+f[1]+'</span>'}).join(" ");
+    return '<div class="row"><span class="room">R'+p.room+'</span><div><div class="nm">'+esc(p.name)+'</div><div class="sub">'+dots(streak(p))+'Day '+dayNo(p)+' '+fl+'</div></div><div class="r3" style="text-align:right">'+tempHTML(t)+'</div><div class="r4"><button class="btn primary" data-act="pat" data-id="'+p.id+'">Visit</button></div></div>';
+  }).join(""):'<div class="empty">No patients waiting for a visit.</div>')+'</div>';
+  out+='<div class="sec"><h2>Waiting for nurse</h2><span>Temperature not taken yet. Visits are locked.</span></div><div class="list">'+(wait.filter(match).length?wait.filter(match).slice(0,12).map(function(p){
+    return '<div class="row dim"><span class="room">R'+p.room+'</span><div><div class="nm">'+esc(p.name)+'</div><div class="sub">Waiting for nurse</div></div><div class="r3"></div><div class="r4"><button class="btn sm" data-act="pat" data-id="'+p.id+'">Emergency visit</button></div></div>';
+  }).join("")+(wait.filter(match).length>12?'<div class="row"><span></span><div class="sub">+ '+(wait.filter(match).length-12)+' more, use search to find a patient</div></div>':''):'<div class="empty">Every patient has been measured.</div>')+'</div>';
+  return out;
+}
+
+/* ---------- admin ---------- */
+function adminView(){
+  if(ui.tab==="dash") return dashView();
+  if(ui.tab==="log") return '<div class="list">'+(S.log.length?S.log.map(function(e){return '<div class="row" style="grid-template-columns:80px minmax(0,1fr)"><span class="sub mono">'+hhmm(e.at)+'</span><div><b>'+esc(e.user)+'</b> <span class="sub">('+e.role+')</span><div class="sub">'+esc(e.text)+'</div></div></div>'}).join(""):'<div class="empty">Nothing recorded yet. Every temperature, visit, discharge and admission shows up here with who did it and when.</div>')+'</div>';
+  if(ui.tab==="rooms"){
+    var by={};S.patients.forEach(function(p){if(occupied(p))by[p.room]=p});
+    var h='<div class="legend"><span>Free (dashed)</span><span>In treatment</span><span style="color:var(--fever)">Fever today</span><span style="color:var(--ok)">Discharge approved</span><span>Grey: awaiting release</span></div><div class="grid74">',i;
+    for(i=1;i<=TOTAL;i++){
+      var p=by[i], c="cell free", ti="Free";
+      if(p){var t=official(p,today());c="cell"+(p.status==="dead"?" dd":p.status==="approved"?" ap":(t&&t.v>=FEVER)?" fv":"");ti=p.name}
+      h+='<div class="'+c+'" title="'+esc(ti)+'">'+i+'</div>';
+    }
+    return '<div class="note">'+Object.keys(by).length+' of '+TOTAL+' rooms occupied. Hover or long-press a room to see the patient.</div>'+h+'</div>';
+  }
+  if(ui.tab==="admit"){
+    var occ={};S.patients.forEach(function(p){if(occupied(p))occ[p.room]=1});
+    var free=[],i2;for(i2=1;i2<=TOTAL;i2++)if(!occ[i2])free.push(i2);
+    return '<div class="card form"><h3>Admit a new patient</h3>'+
+      (free.length?'':'<div class="msg err">No rooms available. All '+TOTAL+' rooms are occupied. Complete a discharge first.</div>')+
+      '<div><label class="f" for="an">Full name</label><input id="an" autocomplete="off"></div>'+
+      '<div><label class="f" for="aa">Age</label><input id="aa" type="number" min="0" max="120" inputmode="numeric"></div>'+
+      '<div><label class="f" for="ar">Room</label><select id="ar"'+(free.length?'':' disabled')+'>'+free.map(function(r){return '<option value="'+r+'">Room '+r+'</option>'}).join("")+'</select></div>'+
+      '<div id="adm-msg"></div><div><button class="btn primary" data-act="admit"'+(free.length?'':' disabled')+'>Admit patient</button></div></div>';
+  }
+  var q=S.patients.filter(function(p){return p.status==="approved"||p.status==="dead"}).sort(function(a,b){return (a.approvedAt||a.diedAt||"")<(b.approvedAt||b.diedAt||"")?-1:1});
+  return '<div class="note">Doctor-approved discharges and recorded deaths waiting for you. Completing one frees the room.</div><div class="list">'+(q.length?q.map(function(p){
+    var dead=p.status==="dead", when=dead?p.diedAt:p.approvedAt, od=!dead&&Date.now()-new Date(when).getTime()>4*3600000;
+    return '<div class="row"><span class="room">R'+p.room+'</span><div><div class="nm">'+esc(p.name)+'</div><div class="sub">'+(dead?'Death recorded by ':'Approved by ')+esc(dead?(p.diedBy||"Dr. Mehta"):p.approvedBy)+' · '+ago(when)+' '+(od?'<span class="pill fever">Overdue</span>':'')+'</div></div><div class="r3">'+(dead?'<span class="pill">Deceased</span>':'<span class="pill ok">Cured</span>')+'</div><div class="r4"><button class="btn primary" data-act="close" data-id="'+p.id+'">'+(dead?'Release room':'Complete discharge')+'</button></div></div>';
+  }).join(""):'<div class="empty">Queue is empty. Rooms free up here once the doctor approves a discharge.</div>')+'</div>';
+}
+
+/* ---------- dashboard ---------- */
+function dashView(){
+  var m=stats(), act=activeList(), meas=act.filter(function(p){return official(p,today())}).length, vis=act.filter(visitedToday).length;
+  var tone=m.rate>15?"fever":m.rate>=12?"warn":"ok", label=m.rate>15?"Above 15% benchmark":m.rate>=12?"Close to benchmark":"Within benchmark";
+  var odDis=act.filter(function(p){return streak(p)>=4}), odAd=S.patients.filter(function(p){return p.status==="approved"&&Date.now()-new Date(p.approvedAt).getTime()>4*3600000});
+  var occ=S.patients.filter(occupied).length;
+  return '<div class="cols"><div class="card" style="grid-column:1/-1"><h3>Mortality rate vs 15% benchmark</h3><div style="display:flex;gap:14px;align-items:baseline;flex-wrap:wrap"><span class="mono" style="font-size:38px;font-weight:600">'+m.rate.toFixed(1)+'%</span><span class="pill '+tone+'">'+label+'</span><span class="sub">Success rate '+(100-m.rate).toFixed(1)+'% against the 85% target</span></div>'+
+    '<div class="bar" style="height:12px;position:relative"><i style="width:'+Math.min(100,m.rate/30*100)+'%;background:var(--'+(tone==="ok"?"ok":tone)+')"></i><span style="position:absolute;left:50%;top:-3px;bottom:-3px;width:2px;background:var(--ink)"></span></div><div class="sub" style="display:flex;justify-content:space-between"><span>0%</span><span>15% benchmark</span><span>30%</span></div>'+
+    '<p class="sub" style="margin-top:8px">'+m.dead+' deaths out of '+m.closed+' closed cases (deaths + cured). Patients still in treatment are left out so the rate is not flattered.'+(m.closed<20?' Fewer than 20 closed cases, so treat this number with caution.':'')+'</p></div></div>'+
+    '<div class="stats" style="margin-top:14px">'+statTile("Rooms in use",occ+" / "+TOTAL,"occupancy",occ/TOTAL*100)+statTile("Temperatures today",meas+" / "+act.length,"nurse checks",act.length?meas/act.length*100:0)+statTile("Doctor visits today",vis+" / "+act.length,"rounds",act.length?vis/act.length*100:0)+statTile("Average stay",m.avgStay.toFixed(1),"days per closed case",null)+'</div>'+
+    '<div class="card"><h3>Overdue discharges</h3>'+((odDis.length+odAd.length)?'<div class="sub" style="margin-bottom:6px">These patients are taking up a bed they may not need.</div>'+odDis.map(function(p){return '<div class="row" style="grid-template-columns:52px minmax(0,1fr);padding:6px 0"><span class="room">R'+p.room+'</span><span>'+esc(p.name)+' <span class="sub">fever-free '+streak(p)+' days, no doctor decision</span></span></div>'}).join("")+odAd.map(function(p){return '<div class="row" style="grid-template-columns:52px minmax(0,1fr);padding:6px 0"><span class="room">R'+p.room+'</span><span>'+esc(p.name)+' <span class="sub">approved '+ago(p.approvedAt)+', admin has not completed it</span></span></div>'}).join(""):'<div class="sub">None right now.</div>')+'</div>';
+}
+
+/* ---------- modals ---------- */
+function renderModal(){
+  var el=document.getElementById("modal"), m=ui.modal;
+  if(!m){el.innerHTML="";return}
+  var p=S.patients.filter(function(x){return x.id===m.id})[0]; if(!p){el.innerHTML="";return}
+  var h='<div class="ov" data-act="bg"><div class="sheet" role="dialog" aria-modal="true">';
+  if(m.type==="rec"){
+    var ex=onDay(p,today());
+    h+='<div class="sh-head"><div><h2>Record temperature</h2><div class="sub">Room '+p.room+' · '+esc(p.name)+' · '+p.age+' yrs · Day '+dayNo(p)+'</div></div><button class="x" data-act="close-modal" aria-label="Close">×</button></div>'+
+      (ex.length?'<div class="msg warn">Already recorded today: <b class="mono">'+ex[0].v.toFixed(1)+'°C</b> by '+esc(ex[0].by)+' at '+hhmm(ex[0].at)+'. A new reading is saved as an extra. The first reading stays official.</div>':'')+
+      '<label class="f" for="temp">Temperature (°C)</label><input class="tin" id="temp" type="number" step="0.1" inputmode="decimal" placeholder="37.0" autofocus>'+
+      '<div class="quick">'+[36.5,37.0,37.5,38.0,38.5,39.0,39.5].map(function(v){return '<button type="button" data-act="quick" data-v="'+v+'">'+v.toFixed(1)+'</button>'}).join("")+'</div><div id="hint"></div>'+
+      (ex.length?'<label class="chk"><input type="checkbox" id="ack1"><span>I know a reading was already taken today and want to add another.</span></label>':'')+
+      '<label class="chk" id="ack2w" hidden><input type="checkbox" id="ack2"><span>I re-checked this unusual reading.</span></label>'+
+      '<div class="sub" style="margin:10px 0 2px">Last 7 days (dashed line is the 38.0 °C fever mark)</div>'+chart(p)+
+      '<div class="acts"><button class="btn primary" id="saveT" data-act="saveT" disabled>Save reading</button><button class="btn" data-act="close-modal">Cancel</button></div>';
+  } else {
+    var s=streak(p), meas=official(p,today()), fl=flags(p), rows="",i;
+    for(i=0;i<7;i++){var k=dkey(i),t=official(p,k),vs=p.visits.filter(function(v){return v.date===k})[0],n=onDay(p,k).length;
+      if(k<p.admitted) continue;
+      rows+='<tr><td class="mono">'+k.slice(5)+'</td><td class="mono">'+(t?'<span class="'+(t.v>=FEVER?'rd fever':'')+'" style="'+(t.v>=FEVER?'font-size:inherit':'')+'">'+t.v.toFixed(1)+'°</span>':'–')+(n>1?' <span class="sub">+'+(n-1)+'</span>':'')+'</td><td>'+(vs?esc(vs.notes):'<span class="muted">No visit</span>')+'</td></tr>'}
+    h+='<div class="sh-head"><div><h2>'+esc(p.name)+'</h2><div class="sub">Room '+p.room+' · '+p.age+' yrs · Day '+dayNo(p)+' · '+dots(s)+s+' fever-free days</div></div><button class="x" data-act="close-modal" aria-label="Close">×</button></div>'+
+      (fl.length?'<div class="msg warn">'+fl.map(function(f){return f[1]}).join(" · ")+'. Review the plan carefully.</div>':'')+
+      (meas?'<div class="msg info">Today\'s temperature: <b class="mono">'+meas.v.toFixed(1)+'°C</b>, taken by '+esc(meas.by)+' at '+hhmm(meas.at)+'.</div>':'<div class="msg warn">Temperature not taken yet today. The nurse should record it first. For an emergency, add an override reason below.</div>')+
+      chart(p)+'<div class="tlw"><table class="tl"><thead><tr><th>Date</th><th>Temp</th><th>Doctor notes</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+      '<label class="f" for="notes" style="margin-top:10px">Today\'s visit notes</label><textarea id="notes" placeholder="Treatment given, observations, plan">'+esc(m.notes||"")+'</textarea>'+
+      (meas?'':'<label class="f" for="ovr" style="margin-top:8px">Emergency override reason</label><input id="ovr" value="'+esc(m.ovr||"")+'" placeholder="Why is this visit happening before the temperature is taken?">')+
+      '<div id="vmsg"></div>';
+    if(m.dead){
+      h+='<div class="msg err"><b>Mark '+esc(p.name)+' as deceased?</b> This cannot be undone. Add the circumstances in the notes above, then confirm.</div><div class="acts"><button class="btn danger" data-act="dead2">Confirm death</button><button class="btn" data-act="dead0">Go back</button></div>';
+    } else {
+      h+='<div class="acts"><button class="btn primary" data-act="saveV">Save visit</button><button class="btn" data-act="approve"'+(s>=3?'':' disabled')+'>Approve discharge</button><button class="btn" data-act="dead1" style="color:var(--fever)">Mark deceased</button></div>'+
+        (s>=3?'':'<div class="sub" style="margin-top:8px">Discharge unlocks after 3 fever-free days in a row. Currently '+s+'. A day without a reading does not count.</div>');
+    }
+  }
+  h+='</div></div>';
+  el.innerHTML=h;
+  if(m.type==="rec"){var t=document.getElementById("temp");if(t)t.focus()}
+}
+function updateRec(){
+  var inp=document.getElementById("temp"); if(!inp) return;
+  var v=parseFloat(inp.value), c=checkTemp(v), p=S.patients.filter(function(x){return x.id===ui.modal.id})[0];
+  var hint=document.getElementById("hint"), cls={err:"err",warn:"warn",fever:"err",ok:"ok"}[c.l];
+  hint.innerHTML=c.m?'<div class="msg '+cls+'">'+c.m+'</div>':"";
+  document.getElementById("ack2w").hidden=c.l!=="warn";
+  var a1=document.getElementById("ack1"), a2=document.getElementById("ack2"), good=c.l!=="empty"&&c.l!=="err";
+  if(a1&&!a1.checked) good=false;
+  if(c.l==="warn"&&!a2.checked) good=false;
+  document.getElementById("saveT").disabled=!good;
+}
+
+/* ---------- actions ---------- */
+function toast(t){var el=document.getElementById("toast");el.innerHTML='<div class="toast" role="status">'+esc(t)+'</div>';clearTimeout(toast.t);toast.t=setTimeout(function(){el.innerHTML=""},3200)}
+function getP(id){return S.patients.filter(function(x){return x.id===id})[0]}
+function vmsg(t,c){var e=document.getElementById("vmsg");if(e)e.innerHTML='<div class="msg '+(c||"err")+'">'+esc(t)+'</div>'}
+function keepNotes(){var n=document.getElementById("notes"),o=document.getElementById("ovr");if(ui.modal&&n){ui.modal.notes=n.value}if(ui.modal&&o){ui.modal.ovr=o.value}}
+
+document.addEventListener("click",function(e){
+  var t=e.target.closest("[data-act]"); if(!t) return;
+  var a=t.getAttribute("data-act"), id=t.getAttribute("data-id"), p;
+  if(a==="bg"){ if(e.target===t){ui.modal=null;renderModal()} return }
+  if(a==="role"){ui.role=t.getAttribute("data-r");ui.tab=TABS[ui.role][0][0];ui.q="";ui.modal=null;ui.dup=false;render();return}
+  if(a==="tab"){ui.tab=t.getAttribute("data-t");ui.q="";render();return}
+  if(a==="reset"){S=seed();save();ui.modal=null;render();toast("Demo data reset to 74 patients");return}
+  if(a==="rec"){ui.modal={type:"rec",id:id};renderModal();return}
+  if(a==="pat"){ui.modal={type:"pat",id:id};renderModal();return}
+  if(a==="close-modal"){ui.modal=null;renderModal();return}
+  if(a==="quick"){var i=document.getElementById("temp");i.value=t.getAttribute("data-v");updateRec();return}
+  if(a==="saveT"){
+    p=getP(ui.modal.id);var v=Math.round(parseFloat(document.getElementById("temp").value)*10)/10, c=checkTemp(v);
+    if(c.l==="err"||c.l==="empty") return;
+    p.temps.push({date:today(),v:v,by:USERS[ui.role],at:new Date().toISOString()});
+    log("Recorded "+v.toFixed(1)+" °C for "+p.name+" (room "+p.room+")");
+    ui.modal=null;render();toast("Saved "+v.toFixed(1)+" °C for "+p.name+(v>=FEVER?". Fever flagged.":""));return;
+  }
+  if(a==="saveV"){
+    keepNotes();p=getP(ui.modal.id);
+    var notes=(ui.modal.notes||"").trim(), meas=official(p,today());
+    if(!notes){vmsg("Add visit notes before saving.");return}
+    if(!meas&&!(ui.modal.ovr||"").trim()){vmsg("Temperature is not recorded yet. Enter an emergency override reason to continue.");return}
+    p.visits.push({date:today(),notes:notes,by:USERS[ui.role],at:new Date().toISOString(),override:meas?null:ui.modal.ovr});
+    log("Visit recorded for "+p.name+(meas?"":" (emergency override: "+ui.modal.ovr+")"));
+    ui.modal=null;render();toast("Visit saved for "+p.name);return;
+  }
+  if(a==="approve"){
+    keepNotes();p=getP(ui.modal.id);
+    if(streak(p)<3){vmsg("Needs 3 fever-free days first.");return}
+    p.status="approved";p.approvedBy=USERS[ui.role];p.approvedAt=new Date().toISOString();
+    var nt=(ui.modal.notes||"").trim(); if(nt)p.visits.push({date:today(),notes:nt,by:USERS[ui.role],at:new Date().toISOString()});
+    log("Approved discharge for "+p.name+" (room "+p.room+")");
+    ui.modal=null;render();toast("Discharge approved. Admin has been notified.");return;
+  }
+  if(a==="dead1"){keepNotes();ui.modal.dead=true;renderModal();return}
+  if(a==="dead0"){keepNotes();ui.modal.dead=false;renderModal();return}
+  if(a==="dead2"){
+    keepNotes();p=getP(ui.modal.id);
+    if(!(ui.modal.notes||"").trim()){vmsg("Write a short note about the circumstances before confirming.");return}
+    p.visits.push({date:today(),notes:"Deceased. "+ui.modal.notes.trim(),by:USERS[ui.role],at:new Date().toISOString()});
+    p.status="dead";p.outcome="dead";p.diedAt=new Date().toISOString();p.diedBy=USERS[ui.role];
+    log("Recorded death of "+p.name+" (room "+p.room+")");
+    ui.modal=null;render();toast("Recorded. Admin will release the room.");return;
+  }
+  if(a==="close"){
+    p=getP(id);
+    if(p.status==="approved"){p.outcome="cured"}
+    p.status="closed";p.closedAt=new Date().toISOString();
+    log((p.outcome==="dead"?"Released room for ":"Completed discharge of ")+p.name);
+    render();toast("Room "+p.room+" is now free");return;
+  }
+  if(a==="admit"){
+    var nm=document.getElementById("an").value.trim(), age=parseInt(document.getElementById("aa").value,10), room=parseInt(document.getElementById("ar").value,10), box=document.getElementById("adm-msg");
+    if(!nm){box.innerHTML='<div class="msg err">Enter the patient\'s name.</div>';return}
+    if(!(age>=0&&age<=120)){box.innerHTML='<div class="msg err">Enter a valid age between 0 and 120.</div>';return}
+    var dup=S.patients.filter(function(x){return occupied(x)&&x.name.toLowerCase()===nm.toLowerCase()&&x.age===age})[0];
+    if(dup&&!ui.dup){ui.dup=true;box.innerHTML='<div class="msg warn">A patient with the same name and age is already in room '+dup.room+'. If this is a different person, press Admit patient again.</div>';return}
+    ui.dup=false;
+    var np={id:"P"+Date.now(),name:nm,age:age,room:room,admitted:today(),temps:[],visits:[],status:"active"};
+    S.patients.push(np);log("Admitted "+nm+" to room "+room);render();toast(nm+" admitted to room "+room+". They now appear on the nurse list.");return;
+  }
+});
+document.addEventListener("input",function(e){
+  if(e.target.id==="q"){ui.q=e.target.value;var pos=e.target.selectionStart;render();var q=document.getElementById("q");if(q){q.focus();q.setSelectionRange(pos,pos)}return}
+  if(e.target.id==="temp"||e.target.id==="ack1"||e.target.id==="ack2")updateRec();
+});
+document.addEventListener("change",function(e){if(e.target.id==="ack1"||e.target.id==="ack2")updateRec()});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&ui.modal){ui.modal=null;renderModal()}});
+
+/* ---------- shell ---------- */
+function render(){
+  var tabs=TABS[ui.role].map(function(t){return '<button role="tab" aria-selected="'+(ui.tab===t[0])+'" data-act="tab" data-t="'+t[0]+'">'+t[1]+'</button>'}).join("");
+  var body=ui.role==="nurse"?nurseView():ui.role==="doctor"?doctorView():adminView();
+  document.getElementById("app").innerHTML=
+    '<header class="top"><div class="top-in"><div class="brand"><b>Ward Board</b><span>Quarantine and treatment centre · '+TOTAL+' rooms</span></div>'+
+    '<div class="seg" role="group" aria-label="Choose role">'+["nurse","doctor","admin"].map(function(r){return '<button data-act="role" data-r="'+r+'" aria-pressed="'+(ui.role===r)+'">'+ROLEL[r]+'</button>'}).join("")+'</div>'+
+    '<div class="who">Signed in as '+USERS[ui.role]+' · <button class="btn sm" data-act="reset">Reset demo data</button></div></div></header>'+
+    '<main class="wrap"><p class="note">Prototype. Switch role above to try each workflow. Changes are saved in this browser only.</p><div class="tabs" role="tablist">'+tabs+'</div>'+body+'</main>';
+}
+render();
+})();
+</script>
+</body>
+</html>
